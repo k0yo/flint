@@ -8,7 +8,7 @@
 - `map` = like python `dict` *(syntax is {key: value, key: value})*
 - `null` = like python `None`
 ---
-To be added?:
+**To be added?:**
 - `object` = user-defined OOP-style object *(`object Player: ...`)*
 - `file` = file handle *(`let f = file "notes.txt"`, etc.)*
 - `sprite` = graphical entity, useful for game dev *(`let player = sprite "cat.png"`, etc.)*
@@ -57,6 +57,7 @@ Logical operators are used to combine conditional statements:
 
 ### 6. Control
 The `:` character, along with indents, define block structures.
+
 **6.1. `if` Statements**
 `if` statements are the similar to Python `if` statements:
 ```
