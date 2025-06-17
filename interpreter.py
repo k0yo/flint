@@ -1,7 +1,7 @@
 import re
 from typing import List, Tuple
 
-
+# Define token specification for Flint language
 TOKEN_SPECIFICATION = [
     ('NUMBER',     r'\d+(\.\d+)?'),       # Integer or decimal number
     ('STRING',     r'"[^"]*"|\'[^\']*\''), # String literals
@@ -43,19 +43,16 @@ def tokenize(code: str) -> List[Tuple[str, str]]:
             tokens.append((kind, value))
     return tokens
 
-
+# Sample Flint code to test lexer
 sample_code = '''
 start:
-    write "Hello, ${name}!"
-    let x: num = 5
-    if x > 3:
-        write "x is large"
-    else:
-        write "x is small"
--- This is a comment
-#- This is a
-multi-line comment -#
+    body: int = 0
+    loop random.int 10:
+        body++
+
+    write "8${body}D"
 '''
 
+# Tokenize and output result
 tokens = tokenize(sample_code)
 print(tokens)

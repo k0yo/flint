@@ -1,4 +1,4 @@
-# Flint Docs
+# Flint Documentation
 ---
 ### 1. Data Types
 - `num` = number *(including both ints/floats)*
