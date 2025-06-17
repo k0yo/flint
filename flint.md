@@ -19,6 +19,7 @@
 
 ### 3. `write` Command
 `write EXPRESSION`
+
 Example: `write "Hello World"`
 - writes `EXPRESSION` into console
 - `write` is similar to `print()` in python or `console.log()` in js
@@ -26,12 +27,14 @@ Example: `write "Hello World"`
 
 ### 4. Variable Assignment (`=`)
 `VARIABLENAME[:TYPE] = EXPRESSION`
+
 Example: `x = 10`, `y: list = ["a", "b"]`
 - declares a variable `VARIABLENAME` with value `EXPRESSION`
 - you can optionally indicate the type of the variable
 
 ### 5. Operators
 `EXPRESSION OPERATOR EXPRESSION`
+
 The basic arithmetic, comparison, and logical operators are the same as Python. Parentheses can also be used to group expressions similar to Python.
 
 **5.1. Arithmetic:**
