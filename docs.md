@@ -85,7 +85,7 @@ The keywords `break` and `continue` are exclusive to the `until` loop. The `brea
 command COMMAND_NAME [ARGUMENTS ... ] :
     DO_SOMETHING
 ```
-`command` defines a new temporary command in the scope it is run in. Temporary commands are similar to functions in other languages. They can be called the same way system commands are called (`new-command [ARGUMENT ... ]`)
+`command` defines a new temporary command in the scope it is run in. Temporary commands are also called functions in other languages. They can be called the same way system commands are called (`new-command [ARGUMENT ... ]`)
 
 **6.4. `compare` Statements**
 ```
