@@ -1,6 +1,6 @@
 # Flint
 
-**Flint** is a clean, beginner-friendly programming language inspired by Python. It simplifies syntax by removing unnecessary brackets and refining grammar, making code easier to read and write.
+**Flint** is a clean, beginner-friendly programming language inspired by Python. It simplifies syntax by removing unnecessary brackets and refining grammar, making code easier to read and write. Check out the docs [here](docs.md).
 
 ---
 
