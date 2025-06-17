@@ -9,7 +9,6 @@
 - `null` = like python `None`
 ---
 **To be added?:**
-- `object` = user-defined OOP-style object *(`object Player: ...`)*
 - `file` = file handle *(`let f = file "notes.txt"`, etc.)*
 - `sprite` = graphical entity, useful for game dev *(`let player = sprite "cat.png"`, etc.)*
 
