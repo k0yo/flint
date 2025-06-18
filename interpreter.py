@@ -105,7 +105,8 @@ def tokenize(code: str) -> List[Tuple[str, str]]:
         match = TOKEN_RE.match(code, pos)
         if not match:
             if code[pos] not in (' ', '\t'):
-                raise SyntaxError(f'Illegal character {code[pos]!r} at position {pos}')
+                line_number = code.count('\n', 0, pos) + 1
+                raise SyntaxError(f'Illegal character {code[pos]!r} at line {line_number}')
             pos += 1
             continue
         kind = match.lastgroup
@@ -179,7 +180,7 @@ start:
         i++
 
     command shout item:
-        write upper text:item
+        write upper item
 
     shout "thank you for visiting!"
 
@@ -189,9 +190,9 @@ start:
     wait 1
 
     review = "  Great service!  "
-    clean_review = trim text:review
+    clean_review = trim review
     write "Customer review: '${clean_review}'"
-    write "Reversed: ${reverse text:clean_review}"
+    write "Reversed: ${reverse clean_review}"
 
     guest.balance += 5
     guest.balance--
