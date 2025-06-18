@@ -1,7 +1,6 @@
 import re
 from typing import List, Tuple
 
-INDENT_SIZE = 4
 
 TOKEN_SPECIFICATION = [
     ('MLCOMMENT',  r';-[\s\S]*?-;'),
@@ -36,7 +35,7 @@ TOKEN_RE = re.compile(TOKEN_REGEX)
 
 def tokenize(code: str) -> List[Tuple[str, str]]:
     tokens = []
-    indent_stack = [0]
+    indent_stack = ['']
     open_positions = [m.start() for m in re.finditer(r';-', code)]
     close_positions = [m.start() for m in re.finditer(r'-;', code)]
     if len(open_positions) > len(close_positions):
@@ -61,27 +60,21 @@ def tokenize(code: str) -> List[Tuple[str, str]]:
         nonlocal expect_indent, indent_stack, tokens, line_buffer, current_line, last_token_newline
         if not line_buffer:
             return
-        leading_spaces = len(current_line) - len(current_line.lstrip(' '))
-        if leading_spaces % INDENT_SIZE != 0:
-            raise IndentationError(f"Inconsistent indentation: {leading_spaces} spaces not multiple of {INDENT_SIZE}")
-        current_level = leading_spaces // INDENT_SIZE
-        last_level = indent_stack[-1]
-        if current_level < last_level:
-            for _ in range(last_level - current_level):
-                tokens.append(('DEDENT', '1'))
-                indent_stack.pop()
-                last_level -= 1
-        if expect_indent:
-            if current_level > last_level:
+        leading_ws = re.match(r'^[ \t]*', current_line).group(0)
+        current_indent = leading_ws
+        last_indent = indent_stack[-1] if indent_stack else ''
+        if current_indent != last_indent:
+            if current_indent.startswith(last_indent):
                 tokens.append(('INDENT', '1'))
-                indent_stack.append(last_level + 1)
-            expect_indent = False
-        else:
-            if current_level > last_level:
-                for _ in range(current_level - last_level):
-                    tokens.append(('INDENT', '1'))
-                    indent_stack.append(last_level + 1)
-                    last_level += 1
+                indent_stack.append(current_indent)
+            elif last_indent.startswith(current_indent):
+                while indent_stack and indent_stack[-1] != current_indent:
+                    tokens.append(('DEDENT', '1'))
+                    indent_stack.pop()
+                if not indent_stack or indent_stack[-1] != current_indent:
+                    raise IndentationError("Unindent does not match any outer indentation level")
+            else:
+                raise IndentationError("Inconsistent use of tabs and spaces in indentation")
         tokens.extend(line_buffer)
         line_buffer.clear()
         last_token_newline = False
@@ -146,7 +139,7 @@ start:
 
     menu = {"coffee": 5, "tea": 3, "cake": 7}
     write "Today's menu:"
-    write "Coffee: $${menu[\\"coffee\\"]}, Tea: $${menu[\\"tea\\"]}, Cake: $${menu[\\"cake\\"]}"
+    write "Coffee: $${menu[\"coffee\"]}, Tea: $${menu[\"tea\"]}, Cake: $${menu[\"cake\"]}"
 
     ask "What would you like to order? (coffee/tea/cake)" as guest.order
     price = menu[guest.order]
@@ -182,7 +175,7 @@ start:
     command shout item:
         write upper item
 
-    shout "thank you for visiting!"
+    write upper "thank you for visiting!"
 
     random.seed 7
     lucky_number = random.int 1 100
