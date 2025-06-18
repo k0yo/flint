@@ -4,20 +4,22 @@ from typing import List, Tuple
 INDENT_SIZE = 4
 
 TOKEN_SPECIFICATION = [
+    ('MLCOMMENT',  r';-[\s\S]*?-;'),
+    ('COMMENT',    r';[^\n]*'),
     ('NUMBER',     r'\d+(\.\d+)?'),
-    ('STRING',     r'"[^"]*"|\'[^\']*\''),
+    ('STRING',     r'"[^"\n]*"|\'[^\'\n]*\''),
+    ('INC_DEC',    r'\+\+|--'),
+    ('COMP_ASSIGN', r'[+\-*/%]='),
     ('ASSIGN',     r'='),
     ('COLON',      r':'),
-    ('ARROW',      r'\|>'),
-    ('OP',         r'[+\-*/%]'),
+    ('PIPE',      r'\|>'),
     ('COMP_OP',    r'==|!=|<=|>=|<|>'),
     ('LOGIC_OP',   r'\b(and|or|not)\b|!'),
     ('KEYWORD',    r'\b(start|let|if|else|while|loop|command|object|check|equals|write|ask|as|wait|async|true|false|null|num|text|bool|list|map)\b'),
+    ('OP',         r'[+\-*/%]'),
     ('IDENTIFIER', r'[A-Za-z_][A-Za-z0-9_]*'),
     ('NEWLINE',    r'\n'),
     ('SKIP',       r'[ \t]+'),
-    ('COMMENT',    r'--[^\n]*'),
-    ('MLCOMMENT',  r'#-[\s\S]*?-#'),
     ('LBRACKET',   r'\['),
     ('RBRACKET',   r'\]'),
     ('LBRACE',     r'\{'),
@@ -35,18 +37,41 @@ def tokenize(code: str) -> List[Tuple[str, str]]:
     tokens = []
     indent_stack = [0]
 
-    lines = code.splitlines()
-    for line in lines:
-        if re.match(r'^\s*($|--|#-)', line):
-            pass
+    open_positions = [m.start() for m in re.finditer(r';-', code)]
+    close_positions = [m.start() for m in re.finditer(r'-;', code)]
+    
+    if len(open_positions) > len(close_positions):
+        matched_pairs = min(len(open_positions), len(close_positions))
+        unclosed_pos = open_positions[matched_pairs]
+        line_number = code.count('\n', 0, unclosed_pos) + 1
+        raise SyntaxError(f"Unclosed multi-line comment starting at line {line_number}")
+    elif len(close_positions) > len(open_positions):
+        matched_pairs = len(open_positions)
+        unopened_pos = close_positions[matched_pairs]
+        line_number = code.count('\n', 0, unopened_pos) + 1
+        raise SyntaxError(f"Unmatched multi-line comment ending '-;' at line {line_number}")
+
+    pos = 0
+    current_line = ""
+    last_newline_pos = 0
+    expect_indent = False
+    line_buffer = []
+    
+    def emit_line_buffer():
+        nonlocal expect_indent, indent_stack, tokens, line_buffer, current_line
+        if not line_buffer:
+            return
+        leading_spaces = len(current_line) - len(current_line.lstrip(' '))
+        if leading_spaces % INDENT_SIZE != 0:
+            raise IndentationError(f"Inconsistent indentation: {leading_spaces} spaces not multiple of {INDENT_SIZE}")
+        current_level = leading_spaces // INDENT_SIZE
+        last_level = indent_stack[-1]
+        if expect_indent:
+            if current_level > last_level:
+                tokens.append(('INDENT', '1'))
+                indent_stack.append(last_level + 1)
+            expect_indent = False
         else:
-            leading_spaces = len(line) - len(line.lstrip(' '))
-            if leading_spaces % INDENT_SIZE != 0:
-                raise IndentationError(f"Inconsistent indentation: {leading_spaces} spaces not multiple of {INDENT_SIZE}")
-
-            current_level = leading_spaces // INDENT_SIZE
-            last_level = indent_stack[-1]
-
             if current_level > last_level:
                 for _ in range(current_level - last_level):
                     tokens.append(('INDENT', '1'))
@@ -57,39 +82,46 @@ def tokenize(code: str) -> List[Tuple[str, str]]:
                     tokens.append(('DEDENT', '1'))
                     indent_stack.pop()
                     last_level -= 1
+        tokens.extend(line_buffer)
+        line_buffer.clear()
 
-        pos = 0
-        while pos < len(line):
-            match = TOKEN_RE.match(line, pos)
-            if not match:
-                if line[pos] not in (' ', '\t'):
-                    raise SyntaxError(f'Illegal character {line[pos]!r} at position {pos}')
-                pos += 1
-                continue
-
-            kind = match.lastgroup
-            value = match.group()
-            pos = match.end()
-
-            if kind in ('SKIP', 'COMMENT', 'MLCOMMENT'):
-                continue
-            elif kind == 'NEWLINE':
-                tokens.append(('NEWLINE', '\\n'))
-            else:
-                tokens.append((kind, value))
-
+    while pos < len(code):
+        if code[pos] == '\n':
+            if current_line.strip() and not re.match(r'^\s*($|;|;-)', current_line):
+                emit_line_buffer()
+            tokens.append(('NEWLINE', '\\n'))
+            current_line = ""
+            pos += 1
+            last_newline_pos = pos
+            continue
+        match = TOKEN_RE.match(code, pos)
+        if not match:
+            if code[pos] not in (' ', '\t'):
+                raise SyntaxError(f'Illegal character {code[pos]!r} at position {pos}')
+            pos += 1
+            continue
+        kind = match.lastgroup
+        value = match.group()
+        pos = match.end()
+        current_line = code[last_newline_pos:pos]
+        if kind in ('SKIP', 'COMMENT', 'MLCOMMENT'):
+            continue
+        if kind == 'COLON':
+            expect_indent = True
+        line_buffer.append((kind, value))
+    if current_line.strip() and not re.match(r'^\s*($|;|;-)', current_line):
+        emit_line_buffer()
     while len(indent_stack) > 1:
         tokens.append(('DEDENT', '1'))
         indent_stack.pop()
-
     tokens.append(('EOF', ''))
     return tokens
 
 
-sample_code = '''#- This is a multi-line comment -#
-
+sample_code = ''';- This is 
+multi-line comment -;
 start:
-    -- This is a single-line comment
+    ; This is a single-line comment
 
     write "🧙 Welcome to FlintQuest!"
     
@@ -151,7 +183,7 @@ start:
     while i < 3:
         item = treasures[i]
         write "You found a ${item}!"
-        i = i + 1
+        i += 1
 
     num_gold = num hero.gold
     write "Total treasure converted to number: ${num_gold}"

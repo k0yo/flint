@@ -13,8 +13,8 @@
 - `sprite` = graphical entity, useful for game dev *(`let player = sprite "cat.png"`, etc.)*
 
 ### 2. Comments
-- single-line: `-- comment`
-- multi-line: `#- comment -#`
+- single-line: `; comment`
+- multi-line: `;- comment -;`
 
 ### 3. `start`
 ```
@@ -51,6 +51,17 @@ The basic arithmetic, comparison, and logical operators are the same as Python. 
 - `*`: multiply both `num`s
 - `/`: divide left `num` from right `num`
 - `%`: (left `num`) modulo (right `num`)
+
+**6.1.1 Increment/Decrement:**
+- `++`: increment by 1 (equivalent to `x = x + 1`)
+- `--`: decrement by 1 (equivalent to `x = x - 1`)
+
+**6.1.2 Compound Assignment:**
+- `+=`: add and assign (equivalent to `x = x + y`)
+- `-=`: subtract and assign (equivalent to `x = x - y`)
+- `*=`: multiply and assign (equivalent to `x = x * y`)
+- `/=`: divide and assign (equivalent to `x = x / y`)
+- `%=`: modulo and assign (equivalent to `x = x % y`)
 
 **6.2. Comparison:**
 All expressions with comparison operators output a `bool` value (`true`/`false`)
