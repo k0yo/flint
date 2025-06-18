@@ -7,7 +7,8 @@ TOKEN_SPECIFICATION = [
     ('MLCOMMENT',  r';-[\s\S]*?-;'),
     ('COMMENT',    r';[^\n]*'),
     ('NUMBER',     r'\d+(\.\d+)?'),
-    ('STRING',     r'"[^"\n]*"|\'[^\'\n]*\''),
+    ('STRING',     r'"([^"\\\n]|\\.)*"|\'([^\'\\\n]|\\.)*\''),
+    ('BOOL',       r'\b(true|false)\b'),
     ('INC_DEC',    r'\+\+|--'),
     ('COMP_ASSIGN', r'[+\-*/%]='),
     ('ASSIGN',     r'='),
@@ -15,7 +16,7 @@ TOKEN_SPECIFICATION = [
     ('PIPE',      r'\|>'),
     ('COMP_OP',    r'==|!=|<=|>=|<|>'),
     ('LOGIC_OP',   r'\b(and|or|not)\b|!'),
-    ('KEYWORD',    r'\b(start|let|if|else|while|loop|command|object|check|equals|write|ask|as|wait|async|true|false|null|num|text|bool|list|map)\b'),
+    ('KEYWORD',    r'\b(start|let|if|else|while|loop|command|object|check|equals|write|ask|as|wait|async|null|num|text|bool|list|map|return)\b'),
     ('OP',         r'[+\-*/%]'),
     ('IDENTIFIER', r'[A-Za-z_][A-Za-z0-9_]*'),
     ('NEWLINE',    r'\n'),
@@ -36,10 +37,8 @@ TOKEN_RE = re.compile(TOKEN_REGEX)
 def tokenize(code: str) -> List[Tuple[str, str]]:
     tokens = []
     indent_stack = [0]
-
     open_positions = [m.start() for m in re.finditer(r';-', code)]
     close_positions = [m.start() for m in re.finditer(r'-;', code)]
-    
     if len(open_positions) > len(close_positions):
         matched_pairs = min(len(open_positions), len(close_positions))
         unclosed_pos = open_positions[matched_pairs]
@@ -56,9 +55,10 @@ def tokenize(code: str) -> List[Tuple[str, str]]:
     last_newline_pos = 0
     expect_indent = False
     line_buffer = []
-    
+    last_token_newline = False
+
     def emit_line_buffer():
-        nonlocal expect_indent, indent_stack, tokens, line_buffer, current_line
+        nonlocal expect_indent, indent_stack, tokens, line_buffer, current_line, last_token_newline
         if not line_buffer:
             return
         leading_spaces = len(current_line) - len(current_line.lstrip(' '))
@@ -66,6 +66,11 @@ def tokenize(code: str) -> List[Tuple[str, str]]:
             raise IndentationError(f"Inconsistent indentation: {leading_spaces} spaces not multiple of {INDENT_SIZE}")
         current_level = leading_spaces // INDENT_SIZE
         last_level = indent_stack[-1]
+        if current_level < last_level:
+            for _ in range(last_level - current_level):
+                tokens.append(('DEDENT', '1'))
+                indent_stack.pop()
+                last_level -= 1
         if expect_indent:
             if current_level > last_level:
                 tokens.append(('INDENT', '1'))
@@ -77,19 +82,22 @@ def tokenize(code: str) -> List[Tuple[str, str]]:
                     tokens.append(('INDENT', '1'))
                     indent_stack.append(last_level + 1)
                     last_level += 1
-            elif current_level < last_level:
-                for _ in range(last_level - current_level):
-                    tokens.append(('DEDENT', '1'))
-                    indent_stack.pop()
-                    last_level -= 1
         tokens.extend(line_buffer)
         line_buffer.clear()
+        last_token_newline = False
 
     while pos < len(code):
         if code[pos] == '\n':
-            if current_line.strip() and not re.match(r'^\s*($|;|;-)', current_line):
+            is_blank = not current_line.strip() or re.match(r'^\s*($|;|;-)', current_line)
+            if not is_blank:
                 emit_line_buffer()
-            tokens.append(('NEWLINE', '\\n'))
+                if not last_token_newline:
+                    tokens.append(('NEWLINE', '\\n'))
+                    last_token_newline = True
+            else:
+                if not last_token_newline:
+                    tokens.append(('NEWLINE', '\\n'))
+                    last_token_newline = True
             current_line = ""
             pos += 1
             last_newline_pos = pos
@@ -109,7 +117,8 @@ def tokenize(code: str) -> List[Tuple[str, str]]:
         if kind == 'COLON':
             expect_indent = True
         line_buffer.append((kind, value))
-    if current_line.strip() and not re.match(r'^\s*($|;|;-)', current_line):
+        last_token_newline = False
+    if line_buffer:
         emit_line_buffer()
     while len(indent_stack) > 1:
         tokens.append(('DEDENT', '1'))
@@ -118,88 +127,77 @@ def tokenize(code: str) -> List[Tuple[str, str]]:
     return tokens
 
 
-sample_code = ''';- This is 
-multi-line comment -;
+sample_code = ''';- Flint Café sample with all features -;
+; This is a single-line comment
 start:
-    ; This is a single-line comment
+    write "☕ Welcome to Flint Café! ☕"
+    ask "What is your name, customer?" as customer_name
 
-    write "🧙 Welcome to FlintQuest!"
-    
-    ask "What is your name, adventurer?" as player_name
-    write "Greetings, ${player_name}!"
-
-    object Player:
+    object Customer:
         name = ""
-        health = 100
-        gold = 0
+        balance = 20
+        order = ""
         mood = "neutral"
+        loyalty = false
 
-    let hero = Player()
-    hero.name = player_name
+    let guest = Customer()
+    guest.name = customer_name
 
-    random.seed num:42
-    hero.gold = random.int num:5 num:15
+    menu = {"coffee": 5, "tea": 3, "cake": 7}
+    write "Today's menu:"
+    write "Coffee: $${menu[\\"coffee\\"]}, Tea: $${menu[\\"tea\\"]}, Cake: $${menu[\\"cake\\"]}"
 
-    write "You wake up in a dark forest with ${hero.gold} gold coins."
-    write "Your health is at ${hero.health}. The adventure begins..."
-
-    ask "How do you feel today?" as hero.mood
-    check hero.mood:
-        equals "happy":
-            write "A positive mind is your greatest weapon!"
-        equals "tired":
-            write "Even heroes need rest."
-        equals "angry":
-            write "Focus that fire!"
-        equals "scared":
-            write "Courage is feeling fear and moving forward anyway."
-
-    mood_clean = lower text:trim text:hero.mood
-    write "Mood saved as: '${mood_clean}'"
-
-    write "You encounter a wild goblin!"
-    loop 3:
-        write "The goblin attacks!"
-
-    goblin_attack = random.int num:5 num:20
-    hero.health = hero.health - goblin_attack
-
-    if hero.health > 0:
-        write "You survive the hit! Health: ${hero.health}"
+    ask "What would you like to order? (coffee/tea/cake)" as guest.order
+    price = menu[guest.order]
+    if guest.balance >= price:
+        guest.balance -= price
+        write "Enjoy your ${guest.order}, ${guest.name}! Remaining balance: $${guest.balance}"
     else:
-        write "The goblin defeated you..."
-        wait 2
-        write "💀 Game Over."
-        return
+        write "Sorry, you don't have enough money for ${guest.order}."
 
-    command heal amount:
-        hero.health = hero.health + amount
-        write "You healed for ${amount} points. Current health: ${hero.health}"
+    ask "How do you feel about your order?" as guest.mood
+    check guest.mood:
+        equals "happy":
+            write "We're glad you're happy!"
+        equals "disappointed":
+            write "Sorry to hear that. Next time will be better!"
+        equals "excited":
+            write "Excitement is contagious!"
+        equals "bored":
+            write "We'll try to spice things up!"
 
-    heal 10
+    guest.loyalty = guest.balance < 10 or guest.mood == "happy"
+    if guest.loyalty:
+        write "You've joined our loyalty program! Free cookie next time."
+    else:
+        write "Earn loyalty by visiting more or sharing your happiness!"
 
-    treasures = ["ruby", "emerald", "gold coin"]
+    favorites = ["coffee", "tea", "cake"]
     i = 0
-    while i < 3:
-        item = treasures[i]
-        write "You found a ${item}!"
-        i += 1
+    loop 3:
+        write "Customer favorite #${i+1}: ${favorites[i]}"
+        i++
 
-    num_gold = num hero.gold
-    write "Total treasure converted to number: ${num_gold}"
+    command shout item:
+        write upper text:item
 
-    write "You hear a whisper: " |> text "sretneva daerac rof sknahT" |> reverse
+    shout "thank you for visiting!"
 
-    ask "Do you want to enter the cave? (yes/no)" as choice
-    check choice:
-        equals "yes":
-            write "You bravely step into the darkness..."
-        equals "no":
-            write "You walk away into the safety of the woods..."
+    random.seed 7
+    lucky_number = random.int 1 100
+    write "Your lucky number for today is: ${lucky_number}"
+    wait 1
 
-    write "✨ The End. Thanks for playing, ${hero.name}!"
-    write true
-    write 6 + 7
+    review = "  Great service!  "
+    clean_review = trim text:review
+    write "Customer review: '${clean_review}'"
+    write "Reversed: ${reverse text:clean_review}"
+
+    guest.balance += 5
+    guest.balance--
+    write "You found $5! New balance: $${guest.balance}"
+
+    write "Goodbye, ${guest.name}! Come back soon to Flint Café."
 '''
 
 tokens = tokenize(sample_code)
