@@ -69,6 +69,7 @@ All expressions with comparison operators output a `bool` value (`true`/`false`)
 - `!=`: return `true` if both expressions are different
 - `<`/`>`: left less/greater than right
 - `<=`/`>=`: left less/greater than or equal to right
+- `in`: returns `true` if the left value is contained in the right value
 
 **6.3. Logical**
 Logical operators are used to combine conditional statements:

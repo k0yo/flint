@@ -15,7 +15,7 @@ TOKEN_SPECIFICATION = [
     ('COLON',       r':'),
     ('PIPE',        r'\|>'),
     ('LOGIC_OP',    r'\b(and|or|not)\b|!'),
-    ('KEYWORD',     r'\b(start|let|if|else|while|loop|command|object|check|equals|write|ask|as|wait|async|null|num|text|bool|list|map|return)\b'),
+    ('KEYWORD',     r'\b(start|let|if|else|while|loop|command|object|check|equals|write|ask|as|wait|async|null|num|text|bool|list|map|return|in)\b'),
     ('OP',          r'[+\-*/%]'),
     ('IDENTIFIER',  r'[A-Za-z_][A-Za-z0-9_]*'),
     ('NEWLINE',     r'\n'),
@@ -63,7 +63,7 @@ def tokenize(code: str) -> List[Tuple[str, str]]:
         leading_ws = re.match(r'^[ \t]*', current_line).group(0)
         current_indent = leading_ws
         last_indent = indent_stack[-1] if indent_stack else ''
-        # Check for inconsistent use of tabs and spaces
+        
         if ((' ' in current_indent and '\t' in current_indent) or
             (current_indent and last_indent and (
                 (' ' in current_indent and '\t' in last_indent) or
@@ -72,7 +72,6 @@ def tokenize(code: str) -> List[Tuple[str, str]]:
             raise TabError("inconsistent use of tabs and spaces in indentation")
         if current_indent != last_indent:
             if current_indent.startswith(last_indent):
-                # Calculate the added indentation
                 added = current_indent[len(last_indent):]
                 if added:
                     tokens.append(('INDENT', ''))
@@ -143,7 +142,7 @@ start:
     ask "What is your name, customer?" as customer_name
 
     object Customer:
-       name = ""
+        name = ""
         balance = 20
         order = ""
         mood = "neutral"
@@ -182,6 +181,8 @@ start:
         write "Earn loyalty by visiting more or sharing your happiness!"
 
     favorites = ["coffee", "tea", "cake"]
+    if "coffee" in favorites:
+        write "Coffee is on the favorites list!"
     i = 0
     loop 3:
         write "Customer favorite #${i+1}: ${favorites[i]}"
