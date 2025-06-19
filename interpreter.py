@@ -65,11 +65,16 @@ def tokenize(code: str) -> List[Tuple[str, str]]:
         last_indent = indent_stack[-1] if indent_stack else ''
         if current_indent != last_indent:
             if current_indent.startswith(last_indent):
-                tokens.append(('INDENT', '1'))
+                # Calculate the added indentation
+                added = current_indent[len(last_indent):]
+                if added:
+                    tokens.append(('INDENT', repr(added)))
                 indent_stack.append(current_indent)
             elif last_indent.startswith(current_indent):
                 while indent_stack and indent_stack[-1] != current_indent:
-                    tokens.append(('DEDENT', '1'))
+                    removed = indent_stack[-1][len(current_indent):]
+                    if removed:
+                        tokens.append(('DEDENT', repr(removed)))
                     indent_stack.pop()
                 if not indent_stack or indent_stack[-1] != current_indent:
                     raise IndentationError("Unindent does not match any outer indentation level")
@@ -115,13 +120,16 @@ def tokenize(code: str) -> List[Tuple[str, str]]:
     if line_buffer:
         emit_line_buffer()
     while len(indent_stack) > 1:
-        tokens.append(('DEDENT', '1'))
+        removed = indent_stack[-1][len(indent_stack[-2]):]
+        if removed:
+            tokens.append(('DEDENT', repr(removed)))
         indent_stack.pop()
     tokens.append(('EOF', ''))
     return tokens
 
 
-sample_code = ''';- Flint Café sample with all features -;
+sample_code = '''
+;- Flint Café sample with all features -;
 ; This is a single-line comment
 start:
     write "☕ Welcome to Flint Café! ☕"
@@ -175,7 +183,7 @@ start:
     command shout item:
         write upper item
 
-    write upper "thank you for visiting!"
+    shout "thank you for visiting!"
 
     random.seed 7
     lucky_number = random.int 1 100
