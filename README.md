@@ -7,7 +7,7 @@
 ### 🔹 Example
 
 ```flint
-;- Flint Café sample with all features -;
+;- Flint Café sample with most features -;
 ; This is a single-line comment
 start:
     write "☕ Welcome to Flint Café! ☕"
