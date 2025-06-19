@@ -139,7 +139,7 @@ start:
 
     menu = {"coffee": 5, "tea": 3, "cake": 7}
     write "Today's menu:"
-    write "Coffee: $${menu[\"coffee\"]}, Tea: $${menu[\"tea\"]}, Cake: $${menu[\"cake\"]}"
+    write "Coffee: $${menu[\\"coffee\\"]}, Tea: $${menu[\\"tea\\"]}, Cake: $${menu[\\"cake\\"]}"
 
     ask "What would you like to order? (coffee/tea/cake)" as guest.order
     price = menu[guest.order]
