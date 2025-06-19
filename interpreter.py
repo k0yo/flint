@@ -63,23 +63,30 @@ def tokenize(code: str) -> List[Tuple[str, str]]:
         leading_ws = re.match(r'^[ \t]*', current_line).group(0)
         current_indent = leading_ws
         last_indent = indent_stack[-1] if indent_stack else ''
+        # Check for inconsistent use of tabs and spaces
+        if ((' ' in current_indent and '\t' in current_indent) or
+            (current_indent and last_indent and (
+                (' ' in current_indent and '\t' in last_indent) or
+                ('\t' in current_indent and ' ' in last_indent)
+            ))):
+            raise TabError("inconsistent use of tabs and spaces in indentation")
         if current_indent != last_indent:
             if current_indent.startswith(last_indent):
                 # Calculate the added indentation
                 added = current_indent[len(last_indent):]
                 if added:
-                    tokens.append(('INDENT', repr(added)))
+                    tokens.append(('INDENT', ''))
                 indent_stack.append(current_indent)
             elif last_indent.startswith(current_indent):
                 while indent_stack and indent_stack[-1] != current_indent:
                     removed = indent_stack[-1][len(current_indent):]
                     if removed:
-                        tokens.append(('DEDENT', repr(removed)))
+                        tokens.append(('DEDENT', ''))
                     indent_stack.pop()
                 if not indent_stack or indent_stack[-1] != current_indent:
-                    raise IndentationError("Unindent does not match any outer indentation level")
+                    raise IndentationError("unindent does not match any outer indentation level")
             else:
-                raise IndentationError("Inconsistent use of tabs and spaces in indentation")
+                raise IndentationError("inconsistent use of tabs and spaces in indentation")
         tokens.extend(line_buffer)
         line_buffer.clear()
         last_token_newline = False
@@ -122,7 +129,7 @@ def tokenize(code: str) -> List[Tuple[str, str]]:
     while len(indent_stack) > 1:
         removed = indent_stack[-1][len(indent_stack[-2]):]
         if removed:
-            tokens.append(('DEDENT', repr(removed)))
+            tokens.append(('DEDENT', ''))
         indent_stack.pop()
     tokens.append(('EOF', ''))
     return tokens
@@ -136,7 +143,7 @@ start:
     ask "What is your name, customer?" as customer_name
 
     object Customer:
-        name = ""
+       name = ""
         balance = 20
         order = ""
         mood = "neutral"
