@@ -1,5 +1,9 @@
 # Flint Documentation
 ---
+### Intro
+- Flint file extension: `.fln`
+- `./flint your_program.fln` to execute your code
+
 ### 1. Data Types
 - `num` = number *(including both ints/floats)*
 - `text` = string *(syntax is `"string"/'string'`)*
@@ -178,7 +182,7 @@ p.name = "Alice"
 `object` creates a new object that can be added with attributes with `ATTR_NAME = VALUE`. This allows new instances of the object to be made. The attribute(s) of `OBJECT` can be set with `OBJECT.ATTR_NAME = VALUE`. This is heavily simplified from other OOP languages' objects.
 
 ### 12. `wait`
-`[async] wait SECONDS`
+`wait SECONDS`
 
 Running `wait` will pause the entire program by `SECONDS` seconds, similar to Python's `time.sleep()` function.
 
