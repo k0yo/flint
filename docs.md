@@ -8,7 +8,7 @@
 - `num` = number *(including both ints/floats)*
 - `text` = string *(syntax is `"string"/'string'`)*
 - `bool` = boolean *(`true`/`false`)*
-- `list` = ordered, changable array *(syntax is `[item, item, item]`)*
+- `list` = ordered, changable array *(0-indexed, syntax is `[item, item, item]`)*
 - `map` = like python `dict` *(syntax is {key: value, key: value})*
 - `null` = like python `None`
 ---
