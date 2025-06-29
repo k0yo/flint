@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "tokenizer.h"
+#include "parser.h"
 
 
 int main(int argc, char *argv[]) {
@@ -42,15 +43,16 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    for (int i = 0; i < token_count; i++) {
-        const char *type_str = token_type_to_string(tokens[i].type);
-        if (tokens[i].type == T_NEWLINE) {
-            printf("(%s, '\\n')\n", type_str);
-        } else {
-            printf("(%s, '%s')\n", type_str, tokens[i].value);
-        }
+    ProgramNode* ast = parse(tokens, token_count);
+    if (ast == NULL) {
+        free_tokens(tokens, token_count);
+        return 1;
     }
 
+    printf("Parsing successful! AST created.\n");
+    print_ast((AstNode*)ast);
+
+    free_ast((AstNode*)ast);
     free_tokens(tokens, token_count);
 
     return 0;

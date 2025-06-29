@@ -20,4 +20,4 @@ const char* token_type_to_string(TokenType type);
 Token* tokenize(const char* code, int* token_count);
 void free_tokens(Token* tokens, int token_count);
 
-#endif // TOKENIZER_H
+#endif
