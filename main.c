@@ -49,7 +49,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    printf("Parsing successful! AST created.\n");
+    printf("Parsing successful!\n");
     print_ast((AstNode*)ast);
 
     free_ast((AstNode*)ast);

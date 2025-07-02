@@ -17,6 +17,7 @@ typedef enum {
     STMT_WHILE,
     STMT_LOOP,
     STMT_COMMAND_DEF,
+    STMT_OBJECT_DEF,
     STMT_CHECK,
     STMT_WRITE,
     STMT_ASK,
@@ -81,9 +82,9 @@ typedef struct Statement {
         struct { Expression* condition; struct Statement** body; int body_count; } while_stmt;
         struct { Expression* count; struct Statement** body; int body_count; } loop_stmt;
         struct { Token name; Token* params; int param_count; struct Statement** body; int body_count; } command_def;
-        struct { Expression* condition; struct Statement** cases; int case_count; } check_stmt;
+        struct { Token name; struct Statement** body; int body_count; } object_def;
         struct { Expression* expression; } write_stmt;
-        struct { Token prompt; Token variable; } ask_stmt;
+        struct { Expression* prompt; Token variable; } ask_stmt;
         struct { Expression* seconds; } wait_stmt;
         struct { Expression* value; } return_stmt;
         struct { Expression* expression; } expr_stmt;

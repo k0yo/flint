@@ -10,10 +10,10 @@ typedef struct {
     int current;
 } Parser;
 
-static Parser g_parser;
-
 static Statement* parse_statement(Parser* p);
 static Expression* parse_expression(Parser* p);
+static void print_statement(Statement* stmt, int indent);
+static void print_expression(Expression* expr, int indent);
 
 static void advance(Parser* p) {
     if (p->current < p->count) {
@@ -78,11 +78,11 @@ typedef enum {
   PREC_PRIMARY
 } Precedence;
 
-typedef Expression* (*ParseFn)(Parser*);
-typedef Expression* (*InfixParseFn)(Parser*, Expression*);
+typedef Expression* (*PrefixParseFn)(Parser* p);
+typedef Expression* (*InfixParseFn)(Parser* p, Expression* left);
 
 typedef struct {
-  ParseFn prefix;
+  PrefixParseFn prefix;
   InfixParseFn infix;
   Precedence precedence;
 } ParseRule;
@@ -94,6 +94,8 @@ static Expression* binary(Parser* p, Expression* left);
 static Expression* call(Parser* p, Expression* left);
 static Expression* get(Parser* p, Expression* left);
 static Expression* parse_precedence(Parser* p, Precedence precedence);
+
+static ParseRule* get_rule(Parser* p, TokenType type);
 
 ParseRule rules[] = {
   [T_LPAREN]      = {grouping, call,   PREC_CALL},
@@ -116,27 +118,10 @@ ParseRule rules[] = {
   [T_EOF]         = {NULL,     NULL,   PREC_NONE},
 };
 
-static ParseRule* get_rule(TokenType type) {
-    if (type == T_OP) {
-        if (strcmp(current_token(&g_parser).value, "*") == 0 || strcmp(current_token(&g_parser).value, "/") == 0) {
-            rules[T_OP].precedence = PREC_FACTOR;
-        } else {
-            rules[T_OP].precedence = PREC_TERM;
-        }
-    } else if (type == T_LOGIC_OP) {
-        if (strcmp(current_token(&g_parser).value, "or") == 0) {
-            rules[T_LOGIC_OP].precedence = PREC_OR;
-        } else {
-            rules[T_LOGIC_OP].precedence = PREC_AND;
-        }
-    }
-    return &rules[type];
-}
-
 
 static Expression* parse_precedence(Parser* p, Precedence precedence) {
     advance(p);
-    ParseFn prefix_rule = get_rule(previous_token(p).type)->prefix;
+    PrefixParseFn prefix_rule = get_rule(p, previous_token(p).type)->prefix;
     if (prefix_rule == NULL) {
         fprintf(stderr, "ParseError on line %d: Expected expression.\n", previous_token(p).line);
         return NULL;
@@ -144,9 +129,9 @@ static Expression* parse_precedence(Parser* p, Precedence precedence) {
 
     Expression* expr = prefix_rule(p);
 
-    while (precedence <= get_rule(current_token(p).type)->precedence) {
+    while (precedence <= get_rule(p, current_token(p).type)->precedence) {
         advance(p);
-        InfixParseFn infix_rule = get_rule(previous_token(p).type)->infix;
+        InfixParseFn infix_rule = get_rule(p, previous_token(p).type)->infix;
         expr = infix_rule(p, expr);
     }
 
@@ -176,7 +161,7 @@ Expression* primary(Parser* p) {
         default:
             fprintf(stderr, "ParseError on line %d: Expected primary expression.\n", previous_token(p).line);
             free(expr);
-            return NULL;
+            exit(1);
     }
     return expr;
 }
@@ -206,7 +191,7 @@ Expression* unary(Parser* p) {
 
 Expression* binary(Parser* p, Expression* left) {
     Token operator = previous_token(p);
-    ParseRule* rule = get_rule(operator.type);
+    ParseRule* rule = get_rule(p, operator.type);
     Expression* right = parse_precedence(p, (Precedence)(rule->precedence + 1));
     
     Expression* expr = malloc(sizeof(Expression));
@@ -266,77 +251,254 @@ Statement* parse_let_statement(Parser* p) {
     return stmt;
 }
 
-Statement* parse_wait_statement(Parser* p) {
-    Expression* seconds = parse_expression(p);
-    consume(p, T_NEWLINE, "Expect newline after wait statement.");
-
+Statement* parse_write_statement(Parser* p) {
     Statement* stmt = malloc(sizeof(Statement));
     stmt->base.node_type = NODE_TYPE_STATEMENT;
     stmt->base.line = previous_token(p).line;
-    stmt->type = STMT_WAIT;
-    stmt->as.wait_stmt.seconds = seconds;
+    stmt->type = STMT_WRITE;
+    stmt->as.write_stmt.expression = parse_expression(p);
+    consume(p, T_NEWLINE, "Expect newline after write statement.");
     return stmt;
 }
 
-Statement* parse_if_statement(Parser* p) {
-    Expression* condition = parse_expression(p);
-    consume(p, T_COLON, "Expect ':' after if condition.");
-    consume(p, T_NEWLINE, "Expect newline after if.");
-    consume(p, T_INDENT, "Expect indent after if.");
-
+Statement* parse_ask_statement(Parser* p) {
     Statement* stmt = malloc(sizeof(Statement));
     stmt->base.node_type = NODE_TYPE_STATEMENT;
-    stmt->type = STMT_IF;
-    stmt->as.if_stmt.condition = condition;
-    
-    stmt->as.if_stmt.body = malloc(sizeof(Statement*));
-    stmt->as.if_stmt.body[0] = parse_statement(p);
-    stmt->as.if_stmt.body_count = 1;
-
-    consume(p, T_DEDENT, "Expect dedent after if block.");
+    stmt->base.line = previous_token(p).line;
+    stmt->type = STMT_ASK;
+    stmt->as.ask_stmt.prompt = parse_expression(p);
+    Token as_keyword = consume(p, T_KEYWORD, "Expect 'as' after ask prompt.");
+    if (strcmp(as_keyword.value, "as") != 0) {
+        fprintf(stderr, "ParseError on line %d: Expected 'as' keyword.\n", as_keyword.line);
+        exit(1);
+    }
+    stmt->as.ask_stmt.variable = consume(p, T_IDENTIFIER, "Expect variable name after 'as'.");
+    consume(p, T_NEWLINE, "Expect newline after ask statement.");
     return stmt;
 }
-
 
 Statement* parse_statement(Parser* p) {
     if (match(p, 1, T_KEYWORD)) {
         Token keyword = previous_token(p);
         if (strcmp(keyword.value, "let") == 0) return parse_let_statement(p);
-        if (strcmp(keyword.value, "if") == 0) return parse_if_statement(p);
-        if (strcmp(keyword.value, "wait") == 0) return parse_wait_statement(p);
+        if (strcmp(keyword.value, "write") == 0) return parse_write_statement(p);
+        if (strcmp(keyword.value, "ask") == 0) return parse_ask_statement(p);
+    }
+
+    Expression* expr = parse_expression(p);
+
+    if (match(p, 1, T_ASSIGN)) {
+        if (expr->type != EXPR_IDENTIFIER && expr->type != EXPR_GET) {
+            fprintf(stderr, "ParseError on line %d: Invalid assignment target.\n", previous_token(p).line);
+            exit(1);
+        }
+        Statement* stmt = malloc(sizeof(Statement));
+        stmt->base.node_type = NODE_TYPE_STATEMENT;
+        stmt->type = STMT_REASSIGN;
+        stmt->as.reassign.target = expr;
+        stmt->as.reassign.value = parse_expression(p);
+        consume(p, T_NEWLINE, "Expect newline after assignment.");
+        return stmt;
     }
 
     Statement* stmt = malloc(sizeof(Statement));
     stmt->base.node_type = NODE_TYPE_STATEMENT;
     stmt->type = STMT_EXPR;
-    stmt->as.expr_stmt.expression = parse_expression(p);
+    stmt->as.expr_stmt.expression = expr;
     consume(p, T_NEWLINE, "Expect newline after expression.");
     return stmt;
 }
 
 ProgramNode* parse(Token* tokens, int token_count) {
     Parser parser = { .tokens = tokens, .count = token_count, .current = 0 };
-    g_parser = parser;
 
     ProgramNode* program = malloc(sizeof(ProgramNode));
     program->base.node_type = NODE_TYPE_PROGRAM;
     program->base.line = 0;
-    program->statements = NULL;
+    program->statements = malloc(sizeof(Statement*) * 32);
     program->count = 0;
-    
-    if(!is_at_end(&parser)) {
-       program->statements = malloc(sizeof(Statement*));
-       program->statements[0] = parse_statement(&parser);
-       program->count = 1;
+    int capacity = 32;
+
+    Token start_keyword = consume(&parser, T_KEYWORD, "Program must start with 'start' keyword.");
+    if (strcmp(start_keyword.value, "start") != 0) {
+        fprintf(stderr, "ParseError: Program must start with 'start' keyword, got '%s'.\n", start_keyword.value);
+        exit(1);
     }
+    consume(&parser, T_COLON, "Expect ':' after 'start' keyword.");
+    consume(&parser, T_NEWLINE, "Expect newline after 'start:'.");
+    consume(&parser, T_INDENT, "Expect indented block after 'start:'.");
+
+    while (!check(&parser, T_DEDENT) && !is_at_end(&parser)) {
+        if (program->count >= capacity) {
+            capacity *= 2;
+            program->statements = realloc(program->statements, sizeof(Statement*) * capacity);
+        }
+        program->statements[program->count++] = parse_statement(&parser);
+    }
+
+    consume(&parser, T_DEDENT, "Expect dedent to close 'start' block.");
 
     return program;
 }
 
+void free_expression(Expression* expr) {
+    if (expr == NULL) return;
+    switch (expr->type) {
+        case EXPR_BINARY:
+            free_expression(expr->as.binary.left);
+            free_expression(expr->as.binary.right);
+            break;
+        case EXPR_UNARY:
+            free_expression(expr->as.unary.right);
+            break;
+        case EXPR_GROUPING:
+            free_expression(expr->as.grouping.expression);
+            break;
+        case EXPR_GET:
+            free_expression(expr->as.get.object);
+            break;
+        case EXPR_CALL:
+            free_expression(expr->as.call.callee);
+            break;
+        case EXPR_LITERAL:
+        case EXPR_IDENTIFIER:
+            break;
+        default: break;
+    }
+    free(expr);
+}
+
+void free_statement(Statement* stmt) {
+    if (stmt == NULL) return;
+    switch(stmt->type) {
+        case STMT_LET_ASSIGN:
+            free_expression(stmt->as.let_assign.initializer);
+            break;
+        case STMT_REASSIGN:
+            free_expression(stmt->as.reassign.target);
+            free_expression(stmt->as.reassign.value);
+            break;
+        case STMT_WRITE:
+            free_expression(stmt->as.write_stmt.expression);
+            break;
+        case STMT_ASK:
+            free_expression(stmt->as.ask_stmt.prompt);
+            break;
+        case STMT_EXPR:
+            free_expression(stmt->as.expr_stmt.expression);
+            break;
+        default: break;
+    }
+    free(stmt);
+}
+
 void free_ast(AstNode* node) {
-    free(node);
+    if (node == NULL) return;
+    ProgramNode* prog = (ProgramNode*)node;
+    for (int i = 0; i < prog->count; i++) {
+        free_statement(prog->statements[i]);
+    }
+    free(prog->statements);
+    free(prog);
+}
+
+static void print_indent(int indent) {
+    for (int i = 0; i < indent; i++) printf("  ");
+}
+
+static void print_expression(Expression* expr, int indent) {
+    print_indent(indent);
+    if (expr == NULL) {
+        printf("(null)\n");
+        return;
+    }
+    switch(expr->type) {
+        case EXPR_BINARY:
+            printf("BinaryOp(%s):\n", expr->as.binary.op.value);
+            print_expression(expr->as.binary.left, indent + 1);
+            print_expression(expr->as.binary.right, indent + 1);
+            break;
+        case EXPR_LITERAL:
+            printf("Literal(%s)\n", expr->as.literal.literal.value);
+            break;
+        case EXPR_IDENTIFIER:
+            printf("Identifier(%s)\n", expr->as.identifier.identifier.value);
+            break;
+        case EXPR_GET:
+            printf("Get(%s):\n", expr->as.get.name.value);
+            print_expression(expr->as.get.object, indent + 1);
+            break;
+        default:
+            printf("UnknownExpr\n");
+            break;
+    }
+}
+
+static void print_statement(Statement* stmt, int indent) {
+    print_indent(indent);
+     if (stmt == NULL) {
+        printf("(null statement)\n");
+        return;
+    }
+    switch(stmt->type) {
+        case STMT_LET_ASSIGN:
+            printf("LetAssign(%s):\n", stmt->as.let_assign.name.value);
+            print_expression(stmt->as.let_assign.initializer, indent + 1);
+            break;
+        case STMT_REASSIGN:
+            printf("Reassign:\n");
+            print_expression(stmt->as.reassign.target, indent + 1);
+            print_expression(stmt->as.reassign.value, indent + 1);
+            break;
+        case STMT_WRITE:
+            printf("Write:\n");
+            print_expression(stmt->as.write_stmt.expression, indent + 1);
+            break;
+        case STMT_ASK:
+            printf("Ask (as %s):\n", stmt->as.ask_stmt.variable.value);
+            print_expression(stmt->as.ask_stmt.prompt, indent + 1);
+            break;
+        case STMT_EXPR:
+            printf("ExprStmt:\n");
+            print_expression(stmt->as.expr_stmt.expression, indent + 1);
+            break;
+        default:
+            printf("UnknownStmt\n");
+            break;
+    }
 }
 
 void print_ast(AstNode* node) {
-    printf("AST printing is not fully implemented yet.\n");
+    if (node == NULL) return;
+    ProgramNode* prog = (ProgramNode*)node;
+    printf("--- Abstract Syntax Tree ---\n");
+    printf("Program:\n");
+    for (int i = 0; i < prog->count; i++) {
+        print_statement(prog->statements[i], 1);
+    }
+    printf("--------------------------\n");
+}
+
+static ParseRule* get_rule(Parser* p, TokenType type) {
+    if (type == T_KEYWORD) {
+        if (strcmp(current_token(p).value, "in") == 0) {
+            return &rules[T_KEYWORD];
+        }
+        return &rules[T_EOF];
+    }
+
+    if (type == T_OP) {
+        if (strcmp(current_token(p).value, "*") == 0 || strcmp(current_token(p).value, "/") == 0) {
+            rules[T_OP].precedence = PREC_FACTOR;
+        } else {
+            rules[T_OP].precedence = PREC_TERM;
+        }
+    } else if (type == T_LOGIC_OP) {
+        if (strcmp(current_token(p).value, "or") == 0) {
+            rules[T_LOGIC_OP].precedence = PREC_OR;
+        } else {
+            rules[T_LOGIC_OP].precedence = PREC_AND;
+        }
+    }
+    return &rules[type];
 }
