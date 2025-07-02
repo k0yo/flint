@@ -82,7 +82,6 @@ typedef struct Statement {
         struct { Expression* condition; struct Statement** body; int body_count; } while_stmt;
         struct { Expression* count; struct Statement** body; int body_count; } loop_stmt;
         struct { Token name; Token* params; int param_count; struct Statement** body; int body_count; } command_def;
-        struct { Token name; struct Statement** body; int body_count; } object_def;
         struct { Expression* expression; } write_stmt;
         struct { Expression* prompt; Token variable; } ask_stmt;
         struct { Expression* seconds; } wait_stmt;
